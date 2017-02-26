@@ -19,16 +19,49 @@ var alchemy = alchemy || {};
 
     var resolveStrokeStyle = function(strokeStyle) {
         return typeof strokeStyle !== 'undefined' ? strokeStyle : 'rbga(255,255,255,1)';
-    };
+    };    
 
-    //Must be the actual canvas
+    /**
+     * Draw a line within the canvas
+     *
+     * @param {Uint8ClampedArray} data - the image data of the entire canvas
+     * @param {number} canvasWidth - width of canvas
+     * @param {number} x - x position
+     * @param {number} y - y position
+     * @param {number} r - red pixel data (0 - 255)
+     * @param {number} g - green pixel data (0 - 255)
+     * @param {number} b - blue pixel data (0 - 255)
+     * @param {number} a - alpha pixel data (0 - 1)
+     */
     A.setPixel = function(data, canvasWidth, x, y, r, g, b, a) {        
         var n = (y * canvasWidth + x) * 4;
         data[n] = r;
         data[n + 1] = b;
         data[n + 2] = g;
         data[n + 3] = Math.round(a * 255);
-    }
+    };
+
+    /**
+     * Draw a line within the canvas
+     *
+     * @param {Uint8ClampedArray} data - the image data of the entire canvas
+     * @param {number} canvasWidth - width of canvas
+     * @param {number} x0 - top left x
+     * @param {number} y0 - top left y
+     * @param {number} x1 - bottom right x
+     * @param {number} y1 - bottom right y
+     * @param {number} r - red pixel data (0 - 255)
+     * @param {number} g - green pixel data (0 - 255)
+     * @param {number} b - blue pixel data (0 - 255)
+     * @param {number} a - alpha pixel data (0 - 1)
+     */
+    A.setPixelArea = function(data, canvasWidth, x0, y0, x1, y1, r, g, b, a) {
+        for (var x = x0; x <= x1; x++) {
+            for (var y = y0; y <= y1; y++) {
+                A.setPixel(data, canvasWidth, x, y, r, g, b, a);
+            }
+        }
+    };
 
     /**
      * Draw a line within the canvas
@@ -186,20 +219,25 @@ var alchemy = alchemy || {};
     var DungeonMapper = function(dungeonId, config) {
 
         //Config
-        this.config = {};
-        this.config.width = 20; //extra one is for the right most gird line
-        this.config.height = 20;
-        this.config.cellSize = 20; //Number of pixel WHITESPACE
-        this.config.gridLineWidth = 1;
+        this.config = this.config || {};
+        this.config.width = 5; //extra one is for the right most gird line
+        this.config.height = 5;
+        this.config.cellSize = 30; //Number of pixel WHITESPACE
+
         this.config.emptyFillStyle = 'rgba(255, 255, 255, 1)';
         this.config.highlightFillStyle = 'rgba(0, 0, 255, .5)'
         this.config.wallFillStyle = 'rgba(0, 0, 0, 1)';
+
         this.config.grid = {};
         this.config.grid.style = {};
         this.config.grid.style.r = 0;
         this.config.grid.style.g = 0;
         this.config.grid.style.b = 0;
         this.config.grid.style.a = .25;
+        this.config.grid.lineWidth = 5;
+
+        this.config.cellRenderers = {};
+
         this.config.ink = {}
         this.config.ink.style = {}
         this.config.ink.style.r = 0;
@@ -211,7 +249,7 @@ var alchemy = alchemy || {};
             y : 0,
             isSelected : false,
             isHighlighted : false,
-            type : null
+            type : 'blank'
         };
 
         //State
@@ -220,7 +258,7 @@ var alchemy = alchemy || {};
         this.dungeonPixelSize = null;
         this.selectedCell = null;
         this.cells = null;
-        this.selectedType = null;
+        this.selectedType = 'blank';
 
         //Draw Session
         this.drawSession = {};
@@ -239,20 +277,6 @@ var alchemy = alchemy || {};
         //Get the Dungeon
         this.dungeon = document.getElementById(dungeonId);
         this.dungeon.mapper = this;
-
-        var dungeonClickHandler = function(event) {
-            var coordinates  = this.mapper.getClickEventCoordinates(event);
-            var cellPosition = this.mapper.getCellPosition(coordinates.x, coordinates.y);
-            var previouslySelectedCell = this.mapper.selectedCell;
-            
-            this.mapper.selectedCell = this.mapper.getCell(cellPosition.x, cellPosition.y);
-            this.mapper.selectedCell.isSelected = true;
-            if(previouslySelectedCell !== null) {
-                previouslySelectedCell.isSelected = false;     
-                this.mapper.drawCell(previouslySelectedCell);           
-            }
-            this.mapper.drawCell(this.mapper.selectedCell);
-        };
 
         var redrawSelections = function(mapper, oldCells, newCells) {
                 mapper.startDrawSession();                
@@ -319,7 +343,7 @@ var alchemy = alchemy || {};
         };
 
         var generateDungeonMouseUpHandler = function(mapper) {
-            return function (event) {                
+            return function (event) {        
                 var coordinates  = mapper.getClickEventCoordinates(event);
                 var cellPosition = mapper.getCellPosition(coordinates.x, coordinates.y);
                   
@@ -342,7 +366,6 @@ var alchemy = alchemy || {};
         };
 
         this.initEvents = function() {
-            this.dungeon.addEventListener('click', dungeonClickHandler, false);
             this.dungeon.addEventListener('mousedown', dungeonMouseDownHandler, false);
             document.body.addEventListener('mouseup', generateDungeonMouseUpHandler(this), false);
         };
@@ -357,15 +380,102 @@ var alchemy = alchemy || {};
 
             this.context = alchemy.getContext(dungeon);
 
-            for (var x = 0; x < this.dungeon.width; x += (this.config.cellSize + this.config.gridLineWidth)) {
-                alchemy.drawBLine(this.dungeon, x, 0, x, this.dungeon.height, this.config.grid.style.r, this.config.grid.style.g, this.config.grid.style.b, this.config.grid.style.a);
+            for (var x = 0; x < this.dungeon.width; x += (this.config.cellSize + this.config.grid.lineWidth)) {
+                for(var i = 0; i < this.config.grid.lineWidth; i++) {
+                    alchemy.drawBLine(this.dungeon, x+i, 0, x+i, this.dungeon.height, this.config.grid.style.r, this.config.grid.style.g, this.config.grid.style.b, this.config.grid.style.a);
+                }
             }
-            for (var y = 0; y < this.dungeon.height; y += (this.config.cellSize + this.config.gridLineWidth)) {
-                alchemy.drawBLine(this.dungeon, 0, y, this.dungeon.width, y, this.config.grid.style.r, this.config.grid.style.g, this.config.grid.style.b, this.config.grid.style.a);
+            for (var y = 0; y < this.dungeon.height; y += (this.config.cellSize + this.config.grid.lineWidth)) {
+                for(var i = 0; i < this.config.grid.lineWidth; i++) {
+                    alchemy.drawBLine(this.dungeon, 0, y+i, this.dungeon.width, y+i, this.config.grid.style.r, this.config.grid.style.g, this.config.grid.style.b, this.config.grid.style.a);
+                }
             }
         };
 
+        /**
+         * Redraw an entire cell. This may cause neighbor cells to redraw their grid walls
+         */
+        this.drawCell = function(cell) {
+            //CHECK FOR SESSION
+            if(this.drawSession.started) {
+                if(this.drawSession.drawnCells.has(cell)) {
+                    return; //ignore cell
+                }
+            }
+
+            var coords = this.getCellInnerCoordinates(cell.x, cell.y);
+
+            alchemy.fillRect(this.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.config.emptyFillStyle);
+            
+            if(cell.type in this.config.cellRenderers) {                
+                var renderer = this.config.cellRenderers[cell.type];
+                renderer.draw(cell, coords);
+            }
+
+            if(cell.isHighlighted) {
+                alchemy.fillRect(this.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.config.highlightFillStyle);
+            }
+            
+            
+
+            //END
+            if(this.drawSession.started) {
+                this.drawSession.drawnCells.add(cell);
+            }
+        };
+
+        this.colorGridWall = function(cell, coords, north, northEast, east, southEast, south, southWest, west, northWest, r, g, b, a) {
+            coords = coords !== null ? coords : this.getCellInnerCoordinates(cell.x, cell.y);
+            r = typeof r !== 'undefined' ? r : 0;
+            g = typeof g !== 'undefined' ? g : 0;
+            b = typeof b !== 'undefined' ? b : 0;
+            a = typeof a !== 'undefined' ? a : 1;
+
+            var imgData = this.context.getImageData(0, 0, this.dungeon.width, this.dungeon.height);
+            var data    = imgData.data;
+
+            var pixelsToPaint = [];
+
+            //North also handles painting the northern corners
+            if(north) {
+                var startX = northWest ? coords.x0 - this.config.grid.lineWidth : coords.x0;
+                var startY = coords.y0 - this.config.grid.lineWidth;
+                var endX   = northEast ? coords.x1 + this.config.grid.lineWidth : coords.x1;
+                var endY   = coords.y0 - 1;
+                alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
+            }
+
+            if(east) {
+                var startX = coords.x1 + 1;
+                var startY = coords.y0;
+                var endX   = coords.x1 + this.config.grid.lineWidth;
+                var endY   = coords.y1;
+                alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
+
+            }
+
+            //South also handles painting the southern corners
+            if(south) {
+                var startX = southWest ? coords.x0 - this.config.grid.lineWidth : coords.x0;
+                var startY = coords.y1 + 1;
+                var endX   = southEast ? coords.x1 + this.config.grid.lineWidth : coords.x1;
+                var endY   = coords.y1 + this.config.grid.lineWidth;
+                alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
+            }
+
+            if(west) {
+                var startX = coords.x0 - this.config.grid.lineWidth;
+                var startY = coords.y0;
+                var endX   = coords.x0 - 1;
+                var endY   = coords.y1;
+                alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
+            }
+
+            this.context.putImageData(imgData, 0, 0);
+        };
+
         this.getCell = function(x, y) {
+            if(x < 0 || y < 0 || x >= this.config.width || y >= this.config.height) return null;
             if(this.cells === null) {
                 this.cells = [];
             }
@@ -400,36 +510,10 @@ var alchemy = alchemy || {};
             this.drawSession.started = false;
         };
 
-        this.drawCell = function(cell) {
-            //CHECK FOR SESSION
-            if(this.drawSession.started) {
-                if(this.drawSession.drawnCells.has(cell)) {
-                    return; //ignore cell
-                }
-            }
-
-            var coords = this.getCellInnerCoordinates(cell.x, cell.y);
-
-            alchemy.fillRect(this.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.config.emptyFillStyle);
-            if(cell.isHighlighted) {
-                alchemy.fillRect(this.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.config.highlightFillStyle);
-            }
-
-            if(cell.type !== null) {
-                var functionName = 'draw' + cell.type.charAt(0).toUpperCase() + cell.type.slice(1);
-                this[functionName](cell, coords);
-            }
-
-            //END
-            if(this.drawSession.started) {
-                this.drawSession.drawnCells.add(cell);
-            }
-        };
-
         this.getDungeonPixelSize = function() {
             //The plus one is for the extra line on the end
-            var pixelWidth = this.config.width * this.config.cellSize + (this.config.width + 1) * this.config.gridLineWidth;
-            var pixelHeight = this.config.height * this.config.cellSize + (this.config.height + 1) * this.config.gridLineWidth; 
+            var pixelWidth = this.config.width * this.config.cellSize + (this.config.width + 1) * this.config.grid.lineWidth;
+            var pixelHeight = this.config.height * this.config.cellSize + (this.config.height + 1) * this.config.grid.lineWidth; 
             return {
                 width : pixelWidth,
                 height : pixelHeight
@@ -438,8 +522,8 @@ var alchemy = alchemy || {};
 
         this.getCellPosition = function(x, y) {
 
-            var xCell = Math.floor(x / (this.config.gridLineWidth + this.config.cellSize));
-            var yCell = Math.floor(y / (this.config.gridLineWidth + this.config.cellSize));
+            var xCell = Math.floor(x / (this.config.grid.lineWidth + this.config.cellSize));
+            var yCell = Math.floor(y / (this.config.grid.lineWidth + this.config.cellSize));
 
             //In the case we've click on the very last grid line we actually need to go back one step
             if(xCell === this.config.width) {
@@ -456,8 +540,8 @@ var alchemy = alchemy || {};
         };
 
         this.getCellInnerCoordinates = function(x, y) {
-            var x0 = (x + 1) * this.config.gridLineWidth + x * this.config.cellSize;
-            var y0 = (y + 1) * this.config.gridLineWidth + y * this.config.cellSize;
+            var x0 = (x + 1) * this.config.grid.lineWidth + x * this.config.cellSize;
+            var y0 = (y + 1) * this.config.grid.lineWidth + y * this.config.cellSize;
             var x1 = x0 + this.config.cellSize - 1;
             var y1 = y0 + this.config.cellSize - 1;
             return {
@@ -482,19 +566,94 @@ var alchemy = alchemy || {};
             this.selectedType = type;
         };
 
-        this.inkGridWall = function(cell, coords, north, south, east, west) {
-            
+        this.addRenderer = function(name, CellRenderer) {
+            this.config.cellRenderers[name] = new CellRenderer(this, name);
+        };
+    };
+
+    window.DungeonMapper = DungeonMapper;
+}());
+
+(function() {
+    var DefaultRenderer = function(mapper, type) {
+        this.mapper = mapper;
+        this.type = type;
+        this.draw = function() {}
+
+        this.getNeighbors = function(cell) {
+            return {
+                north : this.mapper.getCell(cell.x, cell.y - 1),
+                northEast : this.mapper.getCell(cell.x + 1, cell.y - 1),
+                east  : this.mapper.getCell(cell.x + 1, cell.y),
+                southEast : this.mapper.getCell(cell.x + 1, cell.y + 1),
+                south : this.mapper.getCell(cell.x, cell.y + 1),
+                southWest : this.mapper.getCell(cell.x - 1, cell.y + 1),
+                west  : this.mapper.getCell(cell.x - 1, cell.y),
+                northWest : this.mapper.getCell(cell.x - 1, cell.y - 1)
+            };
         };
 
-        //Specific draw methods
-        this.drawWall = function(cell, coords) {
-            alchemy.fillRect(this.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.config.wallFillStyle);
+        this.neighborCompare = function(cell, types) {
+            var neighbors = this.getNeighbors(cell);
+            var north     = neighbors.north     !== null && types.includes(neighbors.north.type);
+            var east      = neighbors.east      !== null && types.includes(neighbors.east.type);
+            var south     = neighbors.south     !== null && types.includes(neighbors.south.type);
+            var west      = neighbors.west      !== null && types.includes(neighbors.west.type);
+            var northEast = neighbors.northEast !== null && types.includes(neighbors.northEast.type) && north && east;
+            var southEast = neighbors.southEast !== null && types.includes(neighbors.southEast.type) && south && east;
+            var southWest = neighbors.southWest !== null && types.includes(neighbors.southWest.type) && south && west;
+            var northWest = neighbors.northWest !== null && types.includes(neighbors.northWest.type) && north && west;
+            return {
+                north     : north,
+                east      : east,
+                south     : south,
+                west      : west,
+                northEast : northEast,
+                southEast : southEast,
+                southWest : southWest,
+                northWest : northWest
+            };
         };
-    }
-    window.DungeonMapper = DungeonMapper;
+    };
+
+    window.DefaultRenderer = DefaultRenderer;
+}());
+
+(function() {
+    var BlankRenderer = function(mapper, type) {
+        DefaultRenderer.call(this, mapper, type);
+
+        this.draw = function(cell, coords) {
+            alchemy.fillRect(this.mapper.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.mapper.config.emptyFillStyle);
+
+            var c = this.neighborCompare(cell, ['blank', 'fillWall']);
+            mapper.colorGridWall(cell, coords, c.north, c.northEast, c.east, c.southEast, c.south, c.southWest, c.west, c.northWest, mapper.config.grid.style.r, mapper.config.grid.style.g, mapper.config.grid.style.b, mapper.config.grid.style.a);
+        };
+    };
+
+    window.BlankRenderer = BlankRenderer;
+}());
+
+(function() {
+    var WallRenderer = function(mapper, type) {
+        DefaultRenderer.call(this, mapper, type);
+
+        this.draw = function(cell, coords) {
+
+            //Fill the edge
+            alchemy.fillRect(this.mapper.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.mapper.config.wallFillStyle);
+            
+            var c = this.neighborCompare(cell, [cell.type]);
+            mapper.colorGridWall(cell, coords, c.north, c.northEast, c.east, c.southEast, c.south, c.southWest, c.west, c.northWest, mapper.config.ink.r, mapper.config.ink.g, mapper.config.ink.b, mapper.config.ink.a);
+        };
+    };
+
+    window.WallRenderer = WallRenderer;
 }());
 
 $(function() {
     window.dm = new DungeonMapper('dungeon');
+    dm.addRenderer('blank', BlankRenderer);
+    dm.addRenderer('fillWall', WallRenderer);
     dm.init();
 });
