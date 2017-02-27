@@ -259,6 +259,7 @@ var alchemy = alchemy || {};
         this.selectedCell = null;
         this.cells = null;
         this.selectedType = 'blank';
+        this.selectedOrientation = 'north';
 
         //Draw Session
         this.drawSession = {};
@@ -409,7 +410,7 @@ var alchemy = alchemy || {};
             
             if(cell.type in this.config.cellRenderers) {                
                 var renderer = this.config.cellRenderers[cell.type];
-                renderer.draw(cell, coords);
+                renderer.draw(cell, coords, this.selectedOrientation);
             }
 
             if(cell.isHighlighted) {
@@ -424,17 +425,16 @@ var alchemy = alchemy || {};
             }
         };
 
-        this.colorGridWall = function(cell, coords, north, northEast, east, southEast, south, southWest, west, northWest, r, g, b, a) {
+        //One of north east south or west MUST be set for the corners to work, corners are not done solo
+        this.colorGridWall = function(cell, coords, north, northEast, east, southEast, south, southWest, west, northWest, r, g, b, a, edgePercentage) {
             coords = coords !== null ? coords : this.getCellInnerCoordinates(cell.x, cell.y);
             r = typeof r !== 'undefined' ? r : 0;
             g = typeof g !== 'undefined' ? g : 0;
             b = typeof b !== 'undefined' ? b : 0;
             a = typeof a !== 'undefined' ? a : 1;
-
+            edgePercentage = typeof edgePercentage !== 'undefined' ? edgePercentage : 1;
             var imgData = this.context.getImageData(0, 0, this.dungeon.width, this.dungeon.height);
             var data    = imgData.data;
-
-            var pixelsToPaint = [];
 
             //North also handles painting the northern corners
             if(north) {
@@ -442,14 +442,28 @@ var alchemy = alchemy || {};
                 var startY = coords.y0 - this.config.grid.lineWidth;
                 var endX   = northEast ? coords.x1 + this.config.grid.lineWidth : coords.x1;
                 var endY   = coords.y0 - 1;
+                if(edgePercentage < .5) {
+                    var dX = Math.round((coords.x1 - coords.x0) * edgePercentage);
+                    var tempEndX = northWest ? startX + this.config.grid.lineWidth + dX : startX + dX;
+                    alchemy.setPixelArea(data, this.dungeon.width, startX, startY, tempEndX, endY, r, g, b, a);
+                    startX = northEast ? endX - this.config.grid.lineWidth - dX : endX - dX;
+
+                }
                 alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
             }
 
             if(east) {
                 var startX = coords.x1 + 1;
-                var startY = coords.y0;
+                var startY = northEast ? coords.y0 - this.config.grid.lineWidth : coords.y0;
                 var endX   = coords.x1 + this.config.grid.lineWidth;
-                var endY   = coords.y1;
+                var endY   = southEast ? coords.y1 + this.config.grid.lineWidth : coords.y1;
+                if(edgePercentage < .5) {
+                    var dY = Math.round((coords.y1 - coords.y0) * edgePercentage);
+                    var tempEndY = northEast ? startY + this.config.grid.lineWidth + dY : startY + dY;
+                    alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
+                    startY = southEast ? endY - this.config.grid.lineWidth - dY : endY - dY;
+
+                }
                 alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
 
             }
@@ -460,14 +474,27 @@ var alchemy = alchemy || {};
                 var startY = coords.y1 + 1;
                 var endX   = southEast ? coords.x1 + this.config.grid.lineWidth : coords.x1;
                 var endY   = coords.y1 + this.config.grid.lineWidth;
+                if(edgePercentage < .5) {
+                    var dX = Math.round((coords.x1 - coords.x0) * edgePercentage);
+                    var tempEndX = southWest ? startX + this.config.grid.lineWidth + dX : startX + dX;
+                    alchemy.setPixelArea(data, this.dungeon.width, startX, startY, tempEndX, endY, r, g, b, a);
+                    startX = southEast ? endX - this.config.grid.lineWidth - dX : endX - dX;
+
+                }
                 alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
             }
 
             if(west) {
                 var startX = coords.x0 - this.config.grid.lineWidth;
-                var startY = coords.y0;
+                var startY = northWest ? coords.y0 - this.config.grid.lineWidth : coords.y0;
                 var endX   = coords.x0 - 1;
-                var endY   = coords.y1;
+                var endY   = southWest ? coords.y1 + this.config.grid.lineWidth : coords.y1;
+                if(edgePercentage < .5) {
+                    var dY = Math.round((coords.y1 - coords.y0) * edgePercentage);
+                    var tempEndY = northWest ? startY + this.config.grid.lineWidth + dY : startY + dY;
+                    alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
+                    startY = southWest ? endY - this.config.grid.lineWidth - dY : endY - dY;
+                }
                 alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
             }
 
@@ -562,9 +589,17 @@ var alchemy = alchemy || {};
             };
         };
 
+        this.getStyle = function(obj) {
+            return 'rgba(' + String(obj.style.r) + ', ' + String(obj.style.g) + ', ' + String(obj.style.b) + ', ' + String(obj.style.a) + ')';
+        };
+
         this.setSelectedType = function(type) {
             this.selectedType = type;
         };
+
+        this.setSelectedOrientation = function(orientation) {
+            this.selectedOrientation = orientation;
+        }
 
         this.addRenderer = function(name, CellRenderer) {
             this.config.cellRenderers[name] = new CellRenderer(this, name);
@@ -578,8 +613,8 @@ var alchemy = alchemy || {};
     var DefaultRenderer = function(mapper, type) {
         this.mapper = mapper;
         this.type = type;
-        this.draw = function() {}
 
+        this.draw = function(cell, coords, orientation) {}
         this.getNeighbors = function(cell) {
             return {
                 north : this.mapper.getCell(cell.x, cell.y - 1),
@@ -595,14 +630,14 @@ var alchemy = alchemy || {};
 
         this.neighborCompare = function(cell, types) {
             var neighbors = this.getNeighbors(cell);
-            var north     = neighbors.north     !== null && types.includes(neighbors.north.type);
-            var east      = neighbors.east      !== null && types.includes(neighbors.east.type);
-            var south     = neighbors.south     !== null && types.includes(neighbors.south.type);
-            var west      = neighbors.west      !== null && types.includes(neighbors.west.type);
-            var northEast = neighbors.northEast !== null && types.includes(neighbors.northEast.type) && north && east;
-            var southEast = neighbors.southEast !== null && types.includes(neighbors.southEast.type) && south && east;
-            var southWest = neighbors.southWest !== null && types.includes(neighbors.southWest.type) && south && west;
-            var northWest = neighbors.northWest !== null && types.includes(neighbors.northWest.type) && north && west;
+            var north     = (neighbors.north     === null && types.includes(null)) || (neighbors.north     !== null && types.includes(neighbors.north.type));
+            var east      = (neighbors.east      === null && types.includes(null)) || (neighbors.east      !== null && types.includes(neighbors.east.type));
+            var south     = (neighbors.south     === null && types.includes(null)) || (neighbors.south     !== null && types.includes(neighbors.south.type));
+            var west      = (neighbors.west      === null && types.includes(null)) || (neighbors.west      !== null && types.includes(neighbors.west.type));
+            var northEast = (neighbors.northEast === null && types.includes(null)) || (neighbors.northEast !== null && types.includes(neighbors.northEast.type) && north && east);
+            var southEast = (neighbors.southEast === null && types.includes(null)) || (neighbors.southEast !== null && types.includes(neighbors.southEast.type) && south && east);
+            var southWest = (neighbors.southWest === null && types.includes(null)) || (neighbors.southWest !== null && types.includes(neighbors.southWest.type) && south && west);
+            var northWest = (neighbors.northWest === null && types.includes(null)) || (neighbors.northWest !== null && types.includes(neighbors.northWest.type) && north && west);
             return {
                 north     : north,
                 east      : east,
@@ -614,6 +649,15 @@ var alchemy = alchemy || {};
                 northWest : northWest
             };
         };
+
+        this.defaultBlankCell = function(coords) {
+            alchemy.fillRect(this.mapper.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.mapper.config.emptyFillStyle);
+        };
+
+        this.defaultBlankGridWalls = function(cell, coords) {
+            var c = this.neighborCompare(cell, ['blank', 'fillWall', null]);
+            mapper.colorGridWall(cell, coords, c.north, c.northEast, c.east, c.southEast, c.south, c.southWest, c.west, c.northWest, mapper.config.grid.style.r, mapper.config.grid.style.g, mapper.config.grid.style.b, mapper.config.grid.style.a);
+        };
     };
 
     window.DefaultRenderer = DefaultRenderer;
@@ -623,11 +667,9 @@ var alchemy = alchemy || {};
     var BlankRenderer = function(mapper, type) {
         DefaultRenderer.call(this, mapper, type);
 
-        this.draw = function(cell, coords) {
-            alchemy.fillRect(this.mapper.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.mapper.config.emptyFillStyle);
-
-            var c = this.neighborCompare(cell, ['blank', 'fillWall']);
-            mapper.colorGridWall(cell, coords, c.north, c.northEast, c.east, c.southEast, c.south, c.southWest, c.west, c.northWest, mapper.config.grid.style.r, mapper.config.grid.style.g, mapper.config.grid.style.b, mapper.config.grid.style.a);
+        this.draw = function(cell, coords, orientation) {
+            this.defaultBlankCell(coords);
+            this.defaultBlankGridWalls(cell, coords);
         };
     };
 
@@ -638,7 +680,7 @@ var alchemy = alchemy || {};
     var WallRenderer = function(mapper, type) {
         DefaultRenderer.call(this, mapper, type);
 
-        this.draw = function(cell, coords) {
+        this.draw = function(cell, coords, orientation) {
 
             //Fill the edge
             alchemy.fillRect(this.mapper.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.mapper.config.wallFillStyle);
@@ -651,9 +693,54 @@ var alchemy = alchemy || {};
     window.WallRenderer = WallRenderer;
 }());
 
+(function() {
+    var DoorRenderer = function(mapper, type) {
+        DefaultRenderer.call(this, mapper, type);
+
+        this.draw = function(cell, coords, orientation) {
+            this.defaultBlankCell(coords);
+
+            if(orientation === 'north') {
+                // this.mapper.colorGridWall(cell, coords, true, false, false, false, false, false, false, false, 255, 255, 255, 0)
+                var radius = Math.round(this.mapper.config.cellSize * .8);
+                var centerX = coords.x0 + Math.round(this.mapper.config.cellSize * .1);
+                var centerY = coords.y0 + Math.round(this.mapper.config.grid.lineWidth / 2);
+                var angle = Math.PI/2.5
+                var lineWidth = Math.round(this.mapper.config.grid.lineWidth / 2);
+                var strokeStyle = 'rgba(0,0,0,1)';
+                alchemy.drawArc(this.mapper.context, centerX, centerY, radius, 0, angle, lineWidth, strokeStyle);
+                var circleX = Math.cos(Math.PI/4)*radius + centerX;
+                var circleY = Math.sin(Math.PI/4)*radius + centerY;
+                alchemy.drawLine(this.mapper.context, centerX, centerY, circleX, circleY, lineWidth, strokeStyle);
+
+
+                var imgData = this.mapper.context.getImageData(0, 0, this.mapper.dungeon.width, this.mapper.dungeon.height);
+                var data    = imgData.data;
+                var startX  = coords.x0 - this.mapper.config.grid.lineWidth;
+                var startY  = coords.y0;
+                var endX    = coords.x0 + Math.round(this.mapper.config.cellSize * .1);
+                var endY    = coords.y0 + this.mapper.config.grid.lineWidth;
+                alchemy.setPixelArea(data, this.mapper.dungeon.width, startX, startY, endX, endY, mapper.config.ink.style.r, mapper.config.ink.style.g, mapper.config.ink.style.b, mapper.config.ink.style.a);
+
+                endX        = coords.x1 + this.mapper.config.grid.lineWidth;
+                startX      = coords.x1 - Math.round(this.mapper.config.cellSize * .1);
+                alchemy.setPixelArea(data, this.mapper.dungeon.width, startX, startY, endX, endY, mapper.config.ink.style.r, mapper.config.ink.style.g, mapper.config.ink.style.b, mapper.config.ink.style.a);
+
+
+                    // alchemy.setPixelArea(data, this.dungeon.width, startX, startY, tempEndX, endY, r, g, b, a);
+                // this.mapper.colorGridWall(cell, coords, true, false, false, false, false, false, false, false, 0, 0, 0, 1, .1)
+
+                this.mapper.context.putImageData(imgData, 0, 0);
+            }
+        };
+    };
+    window.DoorRenderer = DoorRenderer;
+}());
+
 $(function() {
     window.dm = new DungeonMapper('dungeon');
     dm.addRenderer('blank', BlankRenderer);
     dm.addRenderer('fillWall', WallRenderer);
+    dm.addRenderer('door', DoorRenderer);
     dm.init();
 });
