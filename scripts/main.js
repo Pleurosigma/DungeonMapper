@@ -460,7 +460,7 @@ var alchemy = alchemy || {};
                 if(edgePercentage < .5) {
                     var dY = Math.round((coords.y1 - coords.y0) * edgePercentage);
                     var tempEndY = northEast ? startY + this.config.grid.lineWidth + dY : startY + dY;
-                    alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
+                    alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, tempEndY, r, g, b, a);
                     startY = southEast ? endY - this.config.grid.lineWidth - dY : endY - dY;
 
                 }
@@ -492,7 +492,7 @@ var alchemy = alchemy || {};
                 if(edgePercentage < .5) {
                     var dY = Math.round((coords.y1 - coords.y0) * edgePercentage);
                     var tempEndY = northWest ? startY + this.config.grid.lineWidth + dY : startY + dY;
-                    alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
+                    alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, tempEndY, r, g, b, a);
                     startY = southWest ? endY - this.config.grid.lineWidth - dY : endY - dY;
                 }
                 alchemy.setPixelArea(data, this.dungeon.width, startX, startY, endX, endY, r, g, b, a);
@@ -700,37 +700,31 @@ var alchemy = alchemy || {};
         this.draw = function(cell, coords, orientation) {
             this.defaultBlankCell(coords);
 
+
+            var lineWidth = Math.round(this.mapper.config.grid.lineWidth / 2);
+            var strokeStyle = mapper.getStyle(mapper.config.ink);
+            var angle = Math.PI/2.5
             if(orientation === 'north') {
-                // this.mapper.colorGridWall(cell, coords, true, false, false, false, false, false, false, false, 255, 255, 255, 0)
+                this.mapper.colorGridWall(cell, coords, true, false, false, false, false, false, false, false, 255, 255, 255, 0)
                 var radius = Math.round(this.mapper.config.cellSize * .8);
                 var centerX = coords.x0 + Math.round(this.mapper.config.cellSize * .1);
-                var centerY = coords.y0 + Math.round(this.mapper.config.grid.lineWidth / 2);
-                var angle = Math.PI/2.5
-                var lineWidth = Math.round(this.mapper.config.grid.lineWidth / 2);
-                var strokeStyle = 'rgba(0,0,0,1)';
+                var centerY = coords.y0 - Math.round(this.mapper.config.grid.lineWidth / 2);
                 alchemy.drawArc(this.mapper.context, centerX, centerY, radius, 0, angle, lineWidth, strokeStyle);
                 var circleX = Math.cos(Math.PI/4)*radius + centerX;
                 var circleY = Math.sin(Math.PI/4)*radius + centerY;
                 alchemy.drawLine(this.mapper.context, centerX, centerY, circleX, circleY, lineWidth, strokeStyle);
-
-
-                var imgData = this.mapper.context.getImageData(0, 0, this.mapper.dungeon.width, this.mapper.dungeon.height);
-                var data    = imgData.data;
-                var startX  = coords.x0 - this.mapper.config.grid.lineWidth;
-                var startY  = coords.y0;
-                var endX    = coords.x0 + Math.round(this.mapper.config.cellSize * .1);
-                var endY    = coords.y0 + this.mapper.config.grid.lineWidth;
-                alchemy.setPixelArea(data, this.mapper.dungeon.width, startX, startY, endX, endY, mapper.config.ink.style.r, mapper.config.ink.style.g, mapper.config.ink.style.b, mapper.config.ink.style.a);
-
-                endX        = coords.x1 + this.mapper.config.grid.lineWidth;
-                startX      = coords.x1 - Math.round(this.mapper.config.cellSize * .1);
-                alchemy.setPixelArea(data, this.mapper.dungeon.width, startX, startY, endX, endY, mapper.config.ink.style.r, mapper.config.ink.style.g, mapper.config.ink.style.b, mapper.config.ink.style.a);
-
-
-                    // alchemy.setPixelArea(data, this.dungeon.width, startX, startY, tempEndX, endY, r, g, b, a);
-                // this.mapper.colorGridWall(cell, coords, true, false, false, false, false, false, false, false, 0, 0, 0, 1, .1)
-
-                this.mapper.context.putImageData(imgData, 0, 0);
+                this.mapper.colorGridWall(cell, coords, true, false, false, false, false, false, false, false, mapper.config.ink.style.r, mapper.config.ink.style.g, mapper.config.ink.style.b, mapper.config.ink.style.a, .1);
+            }
+            if(orientation === 'east') {
+                this.mapper.colorGridWall(cell, coords, false, false, true, false, false, false, false, false, 255, 255, 255, 0)
+                var radius = Math.round(this.mapper.config.cellSize * .8);
+                var centerX = coords.x1 + Math.round(this.mapper.config.grid.lineWidth / 2);
+                var centerY = coords.y0 + Math.round(this.mapper.config.cellSize * .1);
+                alchemy.drawArc(this.mapper.context, centerX, centerY, radius, Math.PI/2, Math.PI/2 + angle, lineWidth, strokeStyle);
+                var circleX = Math.cos(Math.PI/4 + Math.PI/2)*radius + centerX;
+                var circleY = Math.sin(Math.PI/4 + Math.PI/2)*radius + centerY;
+                alchemy.drawLine(this.mapper.context, centerX, centerY, circleX, circleY, lineWidth, strokeStyle);
+                this.mapper.colorGridWall(cell, coords, false, false, true, false, false, false, false, false, mapper.config.ink.style.r, mapper.config.ink.style.g, mapper.config.ink.style.b, mapper.config.ink.style.a, .1);
             }
         };
     };
