@@ -249,7 +249,9 @@ var alchemy = alchemy || {};
             y : 0,
             isSelected : false,
             isHighlighted : false,
-            type : 'blank'
+            type : 'blank',
+            orientation : 'north',
+            priority : 0
         };
 
         //State
@@ -344,12 +346,16 @@ var alchemy = alchemy || {};
         };
 
         var generateDungeonMouseUpHandler = function(mapper) {
-            return function (event) {        
+            return function (event) {
                 var coordinates  = mapper.getClickEventCoordinates(event);
                 var cellPosition = mapper.getCellPosition(coordinates.x, coordinates.y);
                   
-                for(var i in mapper.selection.selectedCells) {
-                    mapper.selection.selectedCells[i].type  = mapper.selectedType;
+                if(mapper.selectedType in mapper.config.cellRenderers) {                    
+                    for(var i in mapper.selection.selectedCells) {
+                        mapper.selection.selectedCells[i].type  = mapper.selectedType;
+                        mapper.selection.selectedCells[i].orientation = mapper.selectedOrientation;
+                        mapper.selection.selectedCells[i].priority = mapper.config.cellRenderers[mapper.selectedType].priority;
+                    }
                 }
             
                 redrawSelections(mapper, mapper.selection.selectedCells, []);
@@ -410,7 +416,7 @@ var alchemy = alchemy || {};
             
             if(cell.type in this.config.cellRenderers) {                
                 var renderer = this.config.cellRenderers[cell.type];
-                renderer.draw(cell, coords, this.selectedOrientation);
+                renderer.draw(cell, coords);
             }
 
             if(cell.isHighlighted) {
@@ -613,8 +619,51 @@ var alchemy = alchemy || {};
     var DefaultRenderer = function(mapper, type) {
         this.mapper = mapper;
         this.type = type;
+        this.priority = 0;
 
-        this.draw = function(cell, coords, orientation) {}
+        this.draw = function(
+            cell,
+            coords,
+            ignoreCell,
+            ignoreNorth,
+            ignoreNorthEast,
+            ignoreEast,
+            ignoreSouthEast,
+            ignoreSouth,
+            ignoreSouthWest,
+            ignoreWest,
+            ignoreNorthWest,
+            ignoreNeighbors
+        ) {
+            coords = typeof coords !== 'undefined' && coords !== null ? coords : this.mapper.getCellInnerCoordinates(cell.x, cell.y);
+            ignoreCell = typeof ignoreCell !== 'undefined' ? ignoreCell : false;
+            ignoreNorth = typeof ignoreNorth !== 'undefined' ? ignoreNorth : false;
+            ignoreNorthEast = typeof ignoreNorthEast !== 'undefined' ? ignoreNorthEast : false;
+            ignoreEast = typeof ignoreEast !== 'undefined' ? ignoreEast : false;
+            ignoreSouthEast = typeof ignoreSouthEast !== 'undefined' ? ignoreSouthEast : false;
+            ignoreSouth = typeof ignoreSouth !== 'undefined' ? ignoreSouth : false;
+            ignoreSouthWest = typeof ignoreSouthWest !== 'undefined' ? ignoreSouthWest : false;
+            ignoreWest = typeof ignoreWest !== 'undefined' ? ignoreWest : false;
+            ignoreNorthWest = typeof ignoreNorthWest !== 'undefined' ? ignoreNorthWest : false;
+            ignoreNeighbors = typeof ignoreNeighbors !== 'undefined' ? ignoreNeighbors : false;
+            this.drawInternal(cell, coords, ignoreCell, ignoreNorth, ignoreNorthEast, ignoreEast, ignoreSouthEast, ignoreSouth, ignoreSouthWest, ignoreWest, ignoreNorthWest, ignoreNeighbors);
+        };
+
+        this.drawInternal = function(
+            cell,
+            coords,
+            ignoreCell,
+            ignoreNorth,
+            ignoreNorthEast,
+            ignoreEast,
+            ignoreSouthEast,
+            ignoreSouth,
+            ignoreSouthWest,
+            ignoreWest,
+            ignoreNorthWest,
+            ignoreNeighbors
+        ) {};
+
         this.getNeighbors = function(cell) {
             return {
                 north : this.mapper.getCell(cell.x, cell.y - 1),
@@ -654,10 +703,104 @@ var alchemy = alchemy || {};
             alchemy.fillRect(this.mapper.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.mapper.config.emptyFillStyle);
         };
 
-        this.defaultBlankGridWalls = function(cell, coords) {
+        this.defaultBlankGridWalls = function(cell, coords, ignoreNorth, ignoreNorthEast, ignoreEast, ignoreSouthEast, ignoreSouth, ignoreSouthWest, ignoreWest, ignoreNorthWest) {
             var c = this.neighborCompare(cell, ['blank', 'fillWall', null]);
-            mapper.colorGridWall(cell, coords, c.north, c.northEast, c.east, c.southEast, c.south, c.southWest, c.west, c.northWest, mapper.config.grid.style.r, mapper.config.grid.style.g, mapper.config.grid.style.b, mapper.config.grid.style.a);
+            mapper.colorGridWall(cell, coords, c.north && !ignoreNorth, c.northEast && !ignoreNorthEast, c.east && !ignoreEast, c.southEast && !ignoreSouthEast, c.south && !ignoreSouth, c.southWest && !ignoreSouthWest, c.west && !ignoreWest, c.northWest && !ignoreNorthWest, mapper.config.grid.style.r, mapper.config.grid.style.g, mapper.config.grid.style.b, mapper.config.grid.style.a);
         };
+
+        this.defaultRedrawNeighbors = function(
+            cell,
+            ignoreNorth,
+            ignoreNorthEast,
+            ignoreEast,
+            ignoreSouthEast,
+            ignoreSouth,
+            ignoreSouthWest,
+            ignoreWest,
+            ignoreNorthWest
+        ) {
+
+            var neighbors = this.getNeighbors(cell);
+
+            var north = neighbors.north;
+            var east = neighbors.east;
+            var south = neighbors.south;
+            var west = neighbors.west;
+            var northEast = neighbors.northEast;
+            var southEast = neighbors.southEast;
+            var southWest = neighbors.southWest;
+            var northWest = neighbors.northWest;
+
+            var list = [];
+            if(north !== null) list.push(['north', north]);
+            if(east !== null) list.push(['east', east]);
+            if(south !== null) list.push(['south', south]);
+            if(west !== null) list.push(['west', west]);
+            if(northEast !== null) list.push(['northEast', northEast]);
+            if(southEast !== null) list.push(['southEast', southEast]);
+            if(southWest !== null) list.push(['southWest', southWest]);
+            if(northWest !== null) list.push(['northWest', northWest]);
+
+            list.sort(function(a,b) {
+                return a[1].priority - b[1].priority;
+            });
+            
+            for(var i = 0; i < list.length; i++) {
+                this.defaultHaveNeighborRedraw(list[i][0], list[i][1], ignoreNorth, ignoreNorthEast, ignoreEast, ignoreSouthEast, ignoreSouth, ignoreSouthWest, ignoreWest, ignoreNorthWest)
+            }
+        };
+
+        this.defaultHaveNeighborRedraw = function(
+            direction,
+            neighbor,
+            ignoreNorth,
+            ignoreNorthEast,
+            ignoreEast,
+            ignoreSouthEast,
+            ignoreSouth,
+            ignoreSouthWest,
+            ignoreWest,
+            ignoreNorthWest
+        ) {
+            if(direction === 'north' && !ignoreNorth) {
+                                                                                     //cel n     ne    e     se    s      sw    w     nw    nei
+                this.mapper.config.cellRenderers[neighbor.type].draw(neighbor, null, true, true, true, true, false, false, false, true, true, true);
+            }
+
+            else if(direction === 'east' && !ignoreEast) {
+                                                                                     //cel n     ne    e     se     s    sw    w      nw    nei
+                this.mapper.config.cellRenderers[neighbor.type].draw(neighbor, null, true, true, true, true, true, true, false, false, false, true);
+            }
+
+            else if(direction === 'south' && !ignoreSouth) {
+                                                                                     //cel n      ne    e     se    s     sw    w     nw     nei
+                this.mapper.config.cellRenderers[neighbor.type].draw(neighbor, null, true, false, false, true, true, true, true, true, false, true);
+            }
+
+            else if(direction === 'west' && !ignoreWest) {
+                                                                                     //cel n     ne    e      se     s    sw    w     nw    nei
+                this.mapper.config.cellRenderers[neighbor.type].draw(neighbor, null, true, true, false, false, false, true, true, true, true, true);
+            }
+            else if(direction === 'northEast' && !ignoreNorthEast) {
+                                                                                     //cel n     ne    e     se     s      sw     w     nw     nei
+                this.mapper.config.cellRenderers[neighbor.type].draw(neighbor, null, true, true, true, true, true, true, false, true, true, true);
+            }
+
+            else if(direction === 'southEast' && !ignoreSouthEast) {
+                                                                                     //cel n     ne    e     se     s      sw     w     nw     nei
+                this.mapper.config.cellRenderers[neighbor.type].draw(neighbor, null, true, true, true, true, true, true, true, true, false, true);
+            }
+
+            else if(direction === 'southWest' && !ignoreSouthWest) {
+                                                                                     //cel n     ne    e     se     s      sw     w     nw     nei
+                this.mapper.config.cellRenderers[neighbor.type].draw(neighbor, null, true, true, false, true, true, true, true, true, true, true);
+            }
+
+            else if(direction === 'northWest' && !ignoreNorthWest) {
+                                                                                     //cel n     ne    e     se     s      sw     w     nw     nei
+                this.mapper.config.cellRenderers[neighbor.type].draw(neighbor, null, true, true, true, true, false, true, true, true, true, true);
+            }
+        }
     };
 
     window.DefaultRenderer = DefaultRenderer;
@@ -666,10 +809,29 @@ var alchemy = alchemy || {};
 (function() {
     var BlankRenderer = function(mapper, type) {
         DefaultRenderer.call(this, mapper, type);
+        this.priority = 1;
 
-        this.draw = function(cell, coords, orientation) {
-            this.defaultBlankCell(coords);
-            this.defaultBlankGridWalls(cell, coords);
+        this.drawInternal = function(
+            cell,
+            coords,
+            ignoreCell,
+            ignoreNorth,
+            ignoreNorthEast,
+            ignoreEast,
+            ignoreSouthEast,
+            ignoreSouth,
+            ignoreSouthWest,
+            ignoreWest,
+            ignoreNorthWest,
+            ignoreNeighbors
+        ) {
+            if(!ignoreCell) {
+                this.defaultBlankCell(coords);
+            }
+            this.defaultBlankGridWalls(cell, coords, ignoreNorth, ignoreNorthEast, ignoreEast, ignoreSouthEast, ignoreSouth, ignoreSouthWest, ignoreWest, ignoreNorthWest);
+            if(!ignoreNeighbors) {
+                this.defaultRedrawNeighbors(cell, ignoreNorth, ignoreNorthEast, ignoreEast, ignoreSouthEast, ignoreSouth, ignoreSouthWest, ignoreWest, ignoreNorthWest);                
+            }
         };
     };
 
@@ -679,14 +841,31 @@ var alchemy = alchemy || {};
 (function() {
     var WallRenderer = function(mapper, type) {
         DefaultRenderer.call(this, mapper, type);
+        this.priority = 2;
 
-        this.draw = function(cell, coords, orientation) {
-
+        this.drawInternal = function(
+            cell,
+            coords,
+            ignoreCell,
+            ignoreNorth,
+            ignoreNorthEast,
+            ignoreEast,
+            ignoreSouthEast,
+            ignoreSouth,
+            ignoreSouthWest,
+            ignoreWest,
+            ignoreNorthWest,
+            ignoreNeighbors
+        ) {
             //Fill the edge
-            alchemy.fillRect(this.mapper.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.mapper.config.wallFillStyle);
-            
-            var c = this.neighborCompare(cell, [cell.type]);
-            mapper.colorGridWall(cell, coords, c.north, c.northEast, c.east, c.southEast, c.south, c.southWest, c.west, c.northWest, mapper.config.ink.r, mapper.config.ink.g, mapper.config.ink.b, mapper.config.ink.a);
+            if(!ignoreCell) {
+                alchemy.fillRect(this.mapper.context, coords.x0, coords.y0, coords.x1 - coords.x0 + 1, coords.y1 + 1 - coords.y0, this.mapper.config.wallFillStyle);
+            }
+            var c = this.neighborCompare(cell, [null]);
+            mapper.colorGridWall(cell, coords, !c.north && !ignoreNorth, !c.northEast && !ignoreNorthEast,
+                !c.east && !ignoreEast, !c.southEast && !ignoreSouthEast, !c.south && !ignoreSouth,
+                !c.southWest && !ignoreSouthWest, !c.west && !ignoreWest, !c.northWest && !ignoreNorthWest,
+                 mapper.config.ink.r, mapper.config.ink.g, mapper.config.ink.b, mapper.config.ink.a);
         };
     };
 
@@ -696,15 +875,29 @@ var alchemy = alchemy || {};
 (function() {
     var DoorRenderer = function(mapper, type) {
         DefaultRenderer.call(this, mapper, type);
+        this.priority = 3;
 
-        this.draw = function(cell, coords, orientation) {
+        this.drawInternal = function(
+            cell,
+            coords,
+            ignoreCell,
+            ignoreNorth,
+            ignoreNorthEast,
+            ignoreEast,
+            ignoreSouthEast,
+            ignoreSouth,
+            ignoreSouthWest,
+            ignoreWest,
+            ignoreNorthWest,
+            ignoreNeighbors
+        ) {
             this.defaultBlankCell(coords);
 
 
             var lineWidth = Math.round(this.mapper.config.grid.lineWidth / 2);
             var strokeStyle = mapper.getStyle(mapper.config.ink);
             var angle = Math.PI/2.5
-            if(orientation === 'north') {
+            if(cell.orientation === 'north') {
                 this.mapper.colorGridWall(cell, coords, true, false, false, false, false, false, false, false, 255, 255, 255, 0)
                 var radius = Math.round(this.mapper.config.cellSize * .8);
                 var centerX = coords.x0 + Math.round(this.mapper.config.cellSize * .1);
@@ -715,7 +908,7 @@ var alchemy = alchemy || {};
                 alchemy.drawLine(this.mapper.context, centerX, centerY, circleX, circleY, lineWidth, strokeStyle);
                 this.mapper.colorGridWall(cell, coords, true, false, false, false, false, false, false, false, mapper.config.ink.style.r, mapper.config.ink.style.g, mapper.config.ink.style.b, mapper.config.ink.style.a, .1);
             }
-            if(orientation === 'east') {
+            if(cell.orientation === 'east') {
                 this.mapper.colorGridWall(cell, coords, false, false, true, false, false, false, false, false, 255, 255, 255, 0)
                 var radius = Math.round(this.mapper.config.cellSize * .8);
                 var centerX = coords.x1 + Math.round(this.mapper.config.grid.lineWidth / 2);
@@ -737,4 +930,14 @@ $(function() {
     dm.addRenderer('fillWall', WallRenderer);
     dm.addRenderer('door', DoorRenderer);
     dm.init();
+
+    var typeInput = $('input[name="selectedType"]');
+    var orientationInput = $('input[name="selectedOrientation"]');
+    typeInput.val(dm.selectedType);
+    orientationInput.val(dm.selectedOrientation);
+
+    $('#update-button').on('click', function() {
+        dm.setSelectedType(typeInput.val());
+        dm.setSelectedOrientation(orientationInput.val());
+    });
 });
